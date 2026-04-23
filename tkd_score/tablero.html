@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taekwon-Do ITF — Tablero</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#000;font-family:'Oswald',sans-serif;color:#fff;min-height:100vh;overflow:hidden;}
+
+#display{position:relative;width:100vw;height:100vh;background:#050505;overflow:hidden;}
+
+.tri-left{position:absolute;top:0;left:0;width:0;height:0;border-style:solid;
+  border-width:100vh 36vw 0 0;border-color:#1133dd transparent transparent transparent;opacity:.88;}
+.tri-right{position:absolute;top:0;right:0;width:0;height:0;border-style:solid;
+  border-width:0 0 100vh 36vw;border-color:transparent transparent #bb0000 transparent;opacity:.88;}
+.tri-shadow{position:absolute;inset:0;
+  background:radial-gradient(ellipse 28% 55% at 50% 48%,rgba(0,0,0,.72) 0%,transparent 100%);
+  pointer-events:none;}
+
+.title-bar{position:absolute;top:12px;left:0;right:0;text-align:center;z-index:5;}
+.title-bar h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(13px,2vw,26px);
+  color:#00e5ff;letter-spacing:6px;text-shadow:0 0 20px rgba(0,229,255,.35);}
+.title-bar .sub{font-size:clamp(7px,.85vw,12px);color:rgba(255,255,255,.3);letter-spacing:3px;margin-top:2px;}
+
+/* Names */
+.name-blue{position:absolute;top:37%;left:2.5%;z-index:25;}
+.name-red{position:absolute;top:37%;right:2.5%;z-index:25;text-align:right;}
+.comp-name{font-family:'Bebas Neue',sans-serif;font-size:clamp(15px,2.6vw,38px);color:#fff;
+  text-shadow:2px 2px 10px rgba(0,0,0,.8);letter-spacing:2px;
+  background:transparent;border:none;outline:none;cursor:text;
+  width:clamp(90px,19vw,260px);caret-color:#fff;}
+.name-red .comp-name{text-align:right;}
+.comp-name:focus{background:rgba(255,255,255,.1);border-radius:4px;padding:2px 8px;}
+.nhint{font-size:clamp(6px,.65vw,9px);color:rgba(255,255,255,.28);display:block;margin-top:2px;letter-spacing:1px;}
+
+/* Scores */
+.score-blue{position:absolute;left:3%;top:7%;z-index:20;}
+.score-red{position:absolute;right:3%;top:7%;z-index:20;}
+.score-big{font-family:'Bebas Neue',sans-serif;font-size:clamp(44px,7.5vw,105px);line-height:1;}
+.score-big.blue{color:#5de0ff;text-shadow:0 0 28px rgba(0,200,255,.45);}
+.score-big.red{color:#ff5555;text-shadow:0 0 28px rgba(255,60,60,.45);}
+
+/* Center */
+.center-panel{position:absolute;top:0;left:0;right:0;bottom:14vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;}
+.round-lbl{font-size:clamp(8px,1.1vw,15px);color:rgba(255,255,255,.45);letter-spacing:4px;
+  margin-bottom:7px;text-transform:uppercase;}
+
+.w-row{display:flex;align-items:center;gap:13px;margin-bottom:5px;}
+.w-dot{width:clamp(20px,2.8vw,40px);height:clamp(20px,2.8vw,40px);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:clamp(11px,1.5vw,20px);font-weight:700;border:2px solid rgba(255,255,255,.2);}
+.w-dot.blue{background:#0044ff;color:#fff;}
+.w-dot.red{background:#cc0000;color:#fff;}
+.w-lbl{font-family:'Bebas Neue',sans-serif;font-size:clamp(20px,3.2vw,46px);color:#ff7070;letter-spacing:5px;}
+.yc-lbl{font-family:'Bebas Neue',sans-serif;font-size:clamp(18px,2.8vw,40px);color:#ffcc00;letter-spacing:4px;}
+
+.timer-wrap{display:flex;align-items:baseline;line-height:1;}
+.timer-main{font-family:'Bebas Neue',sans-serif;font-size:clamp(65px,12.5vw,175px);
+  color:#00e5ff;text-shadow:0 0 35px rgba(0,229,255,.22);letter-spacing:-2px;}
+.timer-dec{font-family:'Bebas Neue',sans-serif;font-size:clamp(32px,5.5vw,80px);color:#009daa;margin-left:4px;}
+
+.yc-row{display:flex;align-items:center;gap:13px;margin-top:7px;}
+
+.flash-score{position:absolute;top:17%;font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(38px,5.5vw,80px);opacity:0;z-index:30;pointer-events:none;
+  transition:opacity .08s;text-shadow:0 0 18px currentColor;}
+.flash-score.show{opacity:1;}
+
+/* Bottom bar */
+.bbar{position:absolute;bottom:0;left:0;right:0;height:14vh;min-height:76px;
+  background:rgba(0,0,0,.88);border-top:1px solid rgba(255,255,255,.07);
+  display:flex;align-items:center;justify-content:center;
+  gap:10px;padding:0 16px;z-index:50;flex-wrap:wrap;}
+
+.cb{padding:7px 11px;border-radius:5px;font-family:'Oswald',sans-serif;
+  font-size:clamp(9px,1vw,13px);font-weight:700;cursor:pointer;border:1px solid transparent;
+  transition:all .12s;white-space:nowrap;letter-spacing:1px;text-transform:uppercase;}
+.cb:active{transform:scale(.93);}
+.cb-b1{background:#0033cc;color:#fff;border-color:#0055ff;}
+.cb-b2{background:#0055ee;color:#fff;border-color:#4488ff;}
+.cb-b3{background:#2266ff;color:#fff;border-color:#6699ff;}
+.cb-r1{background:#880000;color:#fff;border-color:#cc0000;}
+.cb-r2{background:#aa1111;color:#fff;border-color:#ee3333;}
+.cb-r3{background:#cc2222;color:#fff;border-color:#ff5555;}
+.cb-w{background:#7a3535;color:#fff;border-color:#bb5555;}
+.cb-yc{background:#6a5200;color:#fff;border-color:#ccaa00;}
+.cb-yc2{background:#4a3800;color:#fff;border-color:#aa8800;}
+.cb-n{background:#252525;color:#bbb;border-color:#404040;}
+.cb-n:hover{background:#333;}
+.cb-g{background:#004d00;color:#fff;border-color:#008800;}
+.cb-g.active{background:#007700;border-color:#00ff44;}
+.cb-d{background:#2a0000;color:#ff7777;border-color:#550000;}
+.cb-qr{background:transparent;color:#00e5ff;border-color:#00e5ff;}
+.cb-qr:hover{background:rgba(0,229,255,.1);}
+.sv{width:1px;height:38px;background:rgba(255,255,255,.09);margin:0 2px;flex-shrink:0;}
+
+/* Connection badge */
+.conn{position:absolute;top:12px;right:14px;z-index:100;
+  display:flex;align-items:center;gap:6px;padding:4px 10px;
+  border-radius:20px;background:rgba(0,0,0,.6);border:1px solid #2a2a2a;
+  font-size:11px;color:#666;}
+.cdot{width:8px;height:8px;border-radius:50%;background:#333;}
+.cdot.on{background:#00ee66;box-shadow:0 0 6px #00ee66;}
+
+/* Action feed */
+.feed{position:absolute;bottom:15vh;left:12px;z-index:40;
+  display:flex;flex-direction:column;gap:3px;pointer-events:none;max-width:300px;}
+.feed-item{font-size:10px;color:rgba(255,255,255,.48);background:rgba(0,0,0,.5);
+  padding:3px 8px;border-radius:4px;animation:fio 3.2s forwards;}
+@keyframes fio{0%{opacity:0;transform:translateY(4px)}15%{opacity:1;transform:none}70%{opacity:1}100%{opacity:0}}
+
+/* QR Panel */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:190;display:none;}
+.overlay.show{display:block;}
+.qr-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:#0d0d0d;border:2px solid #00e5ff;border-radius:18px;
+  padding:25px;z-index:200;display:none;flex-direction:column;
+  align-items:center;gap:12px;min-width:300px;max-width:90vw;}
+.qr-panel.show{display:flex;}
+.qr-panel h2{color:#00e5ff;font-size:22px;}
+.qr-panel p{font-size:12px;color:#888;}
+.qr-box{background:#fff;padding:15px;border-radius:12px;}
+.qr-url{font-size:10px;color:#00e5ff;word-break:break-all;text-align:center;background:#1a1a1a;padding:8px;border-radius:8px;}
+.ip-info{font-size:12px;color:#ffaa44;background:#1a1a00;padding:5px 10px;border-radius:5px;margin:5px;}
+.jlist{width:100%;max-height:150px;overflow-y:auto;}
+.jitem{background:#1a1a1a;padding:8px;margin:5px 0;border-radius:5px;display:flex;justify-content:space-between;}
+</style>
+</head>
+<body>
+<div id="display">
+  <div class="tri-left"></div>
+  <div class="tri-right"></div>
+  <div class="tri-shadow"></div>
+
+  <div class="title-bar">
+    <h1>Taekwon-Do Score</h1>
+    <div class="sub">ITF · Sistema Profesional</div>
+  </div>
+
+  <div class="conn" id="conn"><div class="cdot" id="cdot"></div><span id="ctxt">Sin árbitros</span></div>
+
+  <div class="name-blue">
+    <input class="comp-name" id="name-blue" type="text" value="AZUL" maxlength="16">
+    <span class="nhint">✎ editar nombre</span>
+  </div>
+  <div class="name-red">
+    <input class="comp-name" id="name-red" type="text" value="ROJO" maxlength="16" style="text-align:right;">
+    <span class="nhint" style="text-align:right;">editar ✎</span>
+  </div>
+
+  <div class="score-blue"><div class="score-big blue" id="sb">0</div></div>
+  <div class="score-red"><div class="score-big red" id="sr">0</div></div>
+
+  <div class="flash-score" id="flash"></div>
+  <div class="feed" id="feed"></div>
+
+  <div class="center-panel">
+    <div class="round-lbl" id="rlbl">ROUND 1 / 2</div>
+    <div class="w-row">
+      <div class="w-dot blue" id="wb">0</div>
+      <div class="w-lbl">W</div>
+      <div class="w-dot red" id="wr">0</div>
+    </div>
+    <div class="timer-wrap">
+      <span class="timer-main" id="tmm">1</span>
+      <span class="timer-main">:</span>
+      <span class="timer-main" id="tss">00</span>
+      <span class="timer-dec">.<span id="tdc">0</span></span>
+    </div>
+    <div class="yc-row">
+      <div class="w-dot blue" id="yb">0</div>
+      <div class="yc-lbl">YC</div>
+      <div class="w-dot red" id="yr">0</div>
+    </div>
+  </div>
+
+  <div class="bbar">
+    <button class="cb cb-b1" onclick="addScore('blue',1)">Az +1</button>
+    <button class="cb cb-b2" onclick="addScore('blue',2)">Az +2</button>
+    <button class="cb cb-b3" onclick="addScore('blue',3)">Az +3</button>
+    <button class="cb cb-n"  onclick="addScore('blue',-1)">Az −1</button>
+    <div class="sv"></div>
+    <button class="cb cb-w"   onclick="addWarning('blue')">W Az</button>
+    <button class="cb cb-w"   onclick="addWarning('red')">W Ro</button>
+    <button class="cb cb-yc"  onclick="addYC('blue')">YC Az</button>
+    <button class="cb cb-yc2" onclick="addYC('red')">YC Ro</button>
+    <div class="sv"></div>
+    <button class="cb cb-r1" onclick="addScore('red',1)">Ro +1</button>
+    <button class="cb cb-r2" onclick="addScore('red',2)">Ro +2</button>
+    <button class="cb cb-r3" onclick="addScore('red',3)">Ro +3</button>
+    <button class="cb cb-n"  onclick="addScore('red',-1)">Ro −1</button>
+    <div class="sv"></div>
+    <button class="cb cb-g" id="btimer" onclick="toggleTimer()">▶ Iniciar</button>
+    <button class="cb cb-n" onclick="resetTimer()">Reset</button>
+    <button class="cb cb-n" onclick="nextRound()">Ronda ▶</button>
+    <div class="sv"></div>
+    <button class="cb cb-qr" onclick="showQR()">📱 QR Árbitros</button>
+    <button class="cb cb-d"  onclick="resetAll()">Reset Todo</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="hideQR()"></div>
+<div class="qr-panel" id="qrp">
+  <h2>📱 ESCANEA EL QR</h2>
+  <p>Desde el celular para controlar el marcador</p>
+  <div class="ip-info" id="ipInfo">Generando código QR...</div>
+  <div class="qr-box" id="qrbox"></div>
+  <div class="qr-url" id="qrurl"></div>
+  <div class="jlist" id="jlist"><div style="text-align:center;color:#666;">Esperando árbitros...</div></div>
+  <button onclick="hideQR()" style="background:#333;border:none;color:white;padding:10px 20px;border-radius:8px;margin-top:10px;">Cerrar</button>
+</div>
+
+<script>
+// ==================== FIREBASE CONFIG ====================
+const firebaseConfig = {
+  apiKey: "AIzaSyALwouPVrvTZf8WLN2PfrDGqdElbQR0JM0",
+  authDomain: "taekwondo-score-31701.firebaseapp.com",
+  databaseURL: "https://taekwondo-score-31701-default-rtdb.firebaseio.com",
+  projectId: "taekwondo-score-31701",
+  storageBucket: "taekwondo-score-31701.firebasestorage.app",
+  messagingSenderId: "138158947311",
+  appId: "1:138158947311:web:d26837317cec9930d4941a"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
+// ==================== ESTADO ====================
+const S = {
+  scoreBlue: 0, scoreRed: 0,
+  wBlue: 0, wRed: 0,
+  ycBlue: 0, ycRed: 0,
+  round: 1, maxRounds: 2,
+  timerMs: 60000, running: false
+};
+
+let timerInterval = null;
+let lastTimestamp = null;
+let flashTimeout = null;
+const roomId = "tkd_match_" + Date.now();
+
+// ==================== GUARDAR Y CARGAR ESTADO ====================
+function saveToFirebase() {
+  const state = {
+    scoreBlue: S.scoreBlue, scoreRed: S.scoreRed,
+    wBlue: S.wBlue, wRed: S.wRed,
+    ycBlue: S.ycBlue, ycRed: S.ycRed,
+    round: S.round, maxRounds: S.maxRounds,
+    timerMs: S.timerMs, running: S.running,
+    nameBlue: document.getElementById('name-blue').value,
+    nameRed: document.getElementById('name-red').value,
+    timestamp: Date.now()
+  };
+  database.ref(roomId + '/state').set(state);
+}
+
+// Escuchar cambios
+database.ref(roomId + '/state').on('value', (snapshot) => {
+  const data = snapshot.val();
+  if (data) {
+    S.scoreBlue = data.scoreBlue || 0;
+    S.scoreRed = data.scoreRed || 0;
+    S.wBlue = data.wBlue || 0;
+    S.wRed = data.wRed || 0;
+    S.ycBlue = data.ycBlue || 0;
+    S.ycRed = data.ycRed || 0;
+    S.round = data.round || 1;
+    S.timerMs = data.timerMs || 60000;
+    S.running = data.running || false;
+    if (data.nameBlue) document.getElementById('name-blue').value = data.nameBlue;
+    if (data.nameRed) document.getElementById('name-red').value = data.nameRed;
+    renderUI();
+  }
+});
+
+// Escuchar acciones de árbitros
+database.ref(roomId + '/actions').on('child_added', (snapshot) => {
+  const action = snapshot.val();
+  if (action && Date.now() - action.timestamp < 5000) {
+    addFeed('Árbitro', `${action.type} ${action.side || ''}`);
+    switch(action.type) {
+      case 'score': addScore(action.side, action.points, true); break;
+      case 'warning': addWarning(action.side, true); break;
+      case 'yc': addYC(action.side, true); break;
+      case 'timer': toggleTimer(true); break;
+      case 'reset_timer': resetTimer(true); break;
+      case 'next_round': nextRound(true); break;
+      case 'reset_all': resetAll(true); break;
+    }
+  }
+  snapshot.ref.remove();
+});
+
+// Escuchar conexión de árbitros
+database.ref(roomId + '/judges').on('value', (snapshot) => {
+  const judges = snapshot.val() || {};
+  const now = Date.now();
+  let active = 0;
+  for (let id in judges) {
+    if (now - judges[id] < 10000) active++;
+  }
+  const dot = document.getElementById('cdot');
+  const text = document.getElementById('ctxt');
+  const jlist = document.getElementById('jlist');
+  
+  if (active > 0) {
+    dot.classList.add('on');
+    text.textContent = `${active} árbitro${active > 1 ? 's' : ''}`;
+    jlist.innerHTML = Object.keys(judges).map(() => '<div class="jitem"><span>👤 Árbitro</span><span style="color:#0f0;">●</span></div>').join('');
+  } else {
+    dot.classList.remove('on');
+    text.textContent = 'Sin árbitros';
+    jlist.innerHTML = '<div style="text-align:center;color:#666;">📱 Escanea el QR</div>';
+  }
+});
+
+// Heartbeat
+setInterval(() => {
+  database.ref(roomId + '/lastUpdate').set(Date.now());
+}, 5000);
+
+// ==================== FUNCIONES UI ====================
+function renderUI() {
+  document.getElementById('sb').textContent = S.scoreBlue;
+  document.getElementById('sr').textContent = S.scoreRed;
+  document.getElementById('wb').textContent = S.wBlue;
+  document.getElementById('wr').textContent = S.wRed;
+  document.getElementById('yb').textContent = S.ycBlue;
+  document.getElementById('yr').textContent = S.ycRed;
+  document.getElementById('rlbl').textContent = `ROUND ${S.round} / ${S.maxRounds}`;
+  
+  const ts = Math.floor(S.timerMs/1000);
+  document.getElementById('tmm').textContent = Math.floor(ts/60);
+  document.getElementById('tss').textContent = (ts%60).toString().padStart(2,'0');
+  document.getElementById('tdc').textContent = Math.floor((S.timerMs%1000)/100);
+  
+  const btn = document.getElementById('btimer');
+  btn.textContent = S.running ? '⏸ Pausar' : '▶ Iniciar';
+  if (S.running) btn.classList.add('active');
+  else btn.classList.remove('active');
+  
+  saveToFirebase();
+}
+
+function playBeep(freq=880, dur=0.1) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.start();
+    osc.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
+
+function addScore(side, points, remote=false) {
+  if (!remote) playBeep(points>0?660:300,0.08);
+  if(side==='blue') S.scoreBlue = Math.max(0, S.scoreBlue + points);
+  else S.scoreRed = Math.max(0, S.scoreRed + points);
+  renderUI();
+}
+
+function addWarning(side, remote=false) {
+  if (!remote) playBeep(440,0.15);
+  if(side==='blue') {
+    S.wBlue++;
+    if(S.wBlue%2===0) addScore('red',1,remote);
+  } else {
+    S.wRed++;
+    if(S.wRed%2===0) addScore('blue',1,remote);
+  }
+  renderUI();
+}
+
+function addYC(side, remote=false) {
+  if(!remote) playBeep(330,0.2);
+  if(side==='blue') S.ycBlue = Math.min(9, S.ycBlue+1);
+  else S.ycRed = Math.min(9, S.ycRed+1);
+  renderUI();
+}
+
+function toggleTimer(remote=false) {
+  if(S.timerMs<=0) return;
+  S.running = !S.running;
+  if(S.running) {
+    lastTimestamp = Date.now();
+    timerInterval = setInterval(() => {
+      const now = Date.now();
+      S.timerMs = Math.max(0, S.timerMs - (now - lastTimestamp));
+      lastTimestamp = now;
+      renderUI();
+      if(S.timerMs<=0) { clearInterval(timerInterval); S.running=false; renderUI(); }
+    }, 50);
+  } else clearInterval(timerInterval);
+  renderUI();
+}
+
+function resetTimer(remote=false) {
+  clearInterval(timerInterval);
+  S.running = false;
+  S.timerMs = 60000;
+  renderUI();
+}
+
+function nextRound(remote=false) {
+  if(S.round < S.maxRounds) { S.round++; resetTimer(); renderUI(); }
+}
+
+function resetAll(remote=false) {
+  clearInterval(timerInterval);
+  S.scoreBlue=0; S.scoreRed=0; S.wBlue=0; S.wRed=0; S.ycBlue=0; S.ycRed=0;
+  S.round=1; S.timerMs=60000; S.running=false;
+  renderUI();
+}
+
+function addFeed(source, msg) {
+  const feed = document.getElementById('feed');
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  item.textContent = `[${source}] ${msg}`;
+  feed.prepend(item);
+  setTimeout(()=>item.remove(), 3000);
+}
+
+// ==================== QR ====================
+async function showQR() {
+  const modal = document.getElementById('qrp');
+  const overlay = document.getElementById('overlay');
+  const qrBox = document.getElementById('qrbox');
+  
+  // Obtener URL base
+  let baseUrl = window.location.href;
+  baseUrl = baseUrl.substring(0, baseUrl.lastIndexOf('/') + 1);
+  const judgeUrl = baseUrl + 'arbitro.html?room=' + encodeURIComponent(roomId);
+  
+  document.getElementById('qrurl').textContent = judgeUrl;
+  document.getElementById('ipInfo').innerHTML = `🔗 Enlace: ${judgeUrl.substring(0, 50)}...`;
+  qrBox.innerHTML = '';
+  
+  new QRCode(qrBox, {
+    text: judgeUrl,
+    width: 200,
+    height: 200,
+    colorDark: "#000000",
+    colorLight: "#ffffff",
+    correctLevel: QRCode.CorrectLevel.H
+  });
+  
+  modal.classList.add('show');
+  overlay.classList.add('show');
+  addFeed('Sistema', '✅ QR generado - Escanea con tu celular');
+}
+
+function hideQR() {
+  document.getElementById('qrp').classList.remove('show');
+  document.getElementById('overlay').classList.remove('show');
+}
+
+// ==================== INICIO ====================
+document.getElementById('name-blue').addEventListener('input', renderUI);
+document.getElementById('name-red').addEventListener('input', renderUI);
+
+renderUI();
+addFeed('Sistema', '✅ Tablero listo. Haz clic en QR Árbitros');
+console.log('Room ID:', roomId);
+</script>
+</body>
+</html>

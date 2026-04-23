@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Árbitro Taekwon-Do</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:16px;color:#eee;}
+.header{text-align:center;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid #222;}
+.header h1{font-size:1.6rem;background:linear-gradient(135deg,#00e5ff,#0088ff);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.status{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;font-size:0.75rem;color:#888;}
+.led{width:10px;height:10px;border-radius:50%;background:#ff4444;}
+.led.connected{background:#00ff88;box-shadow:0 0 8px #00ff88;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.judge-name{background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;gap:12px;}
+.judge-name input{flex:1;background:transparent;border:none;color:white;font-size:1rem;outline:none;}
+.judge-name button{background:#2a2a2a;border:none;color:#00e5ff;padding:6px 12px;border-radius:8px;font-weight:bold;}
+.score-section{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+.card{background:#111;border-radius:16px;padding:12px;text-align:center;border:1px solid #222;}
+.card.blue{border-top:3px solid #2277ff;}
+.card.red{border-top:3px solid #ff3333;}
+.card h3{font-size:1rem;margin-bottom:8px;}
+.score-number{font-size:2.2rem;font-weight:bold;font-family:monospace;margin-bottom:10px;}
+.blue .score-number{color:#5de0ff;}
+.red .score-number{color:#ff7777;}
+.points-group{display:flex;gap:8px;justify-content:center;margin-bottom:10px;flex-wrap:wrap;}
+.points-btn{background:#1e1e1e;border:none;color:white;font-size:1.1rem;font-weight:bold;padding:8px 12px;border-radius:10px;cursor:pointer;min-width:50px;}
+.points-btn:active{transform:scale(0.94);}
+.action-row{display:flex;gap:8px;margin-top:6px;}
+.warning-btn,.yc-btn{background:#2a1a1a;border:none;color:#ffaa66;padding:6px 10px;border-radius:20px;font-size:0.7rem;font-weight:bold;cursor:pointer;flex:1;}
+.yc-btn{background:#2a2a1a;color:#ffcc44;}
+.danger-btn{background:#330000;color:#ff8888;}
+.timer-panel{background:#111;border-radius:16px;padding:12px;margin-bottom:16px;text-align:center;}
+.timer-display{font-family:monospace;font-size:2.5rem;font-weight:bold;letter-spacing:3px;margin:6px 0;color:#00e5ff;}
+.timer-buttons{display:flex;gap:10px;}
+.ctrl-btn{background:#1a1a1a;border:none;color:#ccc;padding:8px 14px;border-radius:30px;font-size:0.8rem;font-weight:bold;cursor:pointer;flex:1;}
+.danger-zone{display:flex;gap:10px;margin-bottom:16px;}
+.reset-btn{background:#2a0000;color:#ff5555;flex:1;}
+.feed{background:#060606;border-radius:12px;padding:10px;max-height:120px;overflow-y:auto;font-size:0.65rem;}
+.feed-item{padding:4px 0;border-bottom:1px solid #1a1a1a;color:#aaa;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ ÁRBITRO MÓVIL</h1>
+  <div class="status">
+    <div class="led" id="statusLed"></div>
+    <span id="statusText">Conectando...</span>
+  </div>
+</div>
+
+<div class="judge-name">
+  <input type="text" id="judgeName" placeholder="Tu nombre" value="Árbitro">
+  <button id="setNameBtn">✓</button>
+</div>
+
+<div class="score-section">
+  <div class="card blue">
+    <h3>🔵 AZUL</h3>
+    <div class="score-number" id="blueScore">0</div>
+    <div class="points-group">
+      <button class="points-btn" data-side="blue" data-points="1">+1</button>
+      <button class="points-btn" data-side="blue" data-points="2">+2</button>
+      <button class="points-btn" data-side="blue" data-points="3">+3</button>
+      <button class="points-btn danger-btn" data-side="blue" data-points="-1">-1</button>
+    </div>
+    <div class="action-row">
+      <button class="warning-btn" data-side="blue" data-action="warning">⚠️ W</button>
+      <button class="yc-btn" data-side="blue" data-action="yc">🟨 YC</button>
+    </div>
+  </div>
+  <div class="card red">
+    <h3>🔴 ROJO</h3>
+    <div class="score-number" id="redScore">0</div>
+    <div class="points-group">
+      <button class="points-btn" data-side="red" data-points="1">+1</button>
+      <button class="points-btn" data-side="red" data-points="2">+2</button>
+      <button class="points-btn" data-side="red" data-points="3">+3</button>
+      <button class="points-btn danger-btn" data-side="red" data-points="-1">-1</button>
+    </div>
+    <div class="action-row">
+      <button class="warning-btn" data-side="red" data-action="warning">⚠️ W</button>
+      <button class="yc-btn" data-side="red" data-action="yc">🟨 YC</button>
+    </div>
+  </div>
+</div>
+
+<div class="timer-panel">
+  <div>🕐 CRONÓMETRO</div>
+  <div class="timer-display" id="timerDisplay">1:00.0</div>
+  <div class="timer-buttons">
+    <button class="ctrl-btn" id="timerToggle">▶ INICIAR</button>
+    <button class="ctrl-btn" id="timerReset">RESET</button>
+  </div>
+</div>
+
+<div class="danger-zone">
+  <button class="ctrl-btn reset-btn" id="nextRoundBtn">▶ SIG. RONDA</button>
+  <button class="ctrl-btn reset-btn" id="resetAllBtn">🔄 RESET TOTAL</button>
+</div>
+
+<div class="feed" id="feedPanel">
+  <div class="feed-item">🎯 Panel de árbitro listo</div>
+</div>
+
+<script>
+// ==================== FIREBASE ====================
+const firebaseConfig = {
+  apiKey: "AIzaSyALwouPVrvTZf8WLN2PfrDGqdElbQR0JM0",
+  authDomain: "taekwondo-score-31701.firebaseapp.com",
+  databaseURL: "https://taekwondo-score-31701-default-rtdb.firebaseio.com",
+  projectId: "taekwondo-score-31701",
+  storageBucket: "taekwondo-score-31701.firebasestorage.app",
+  messagingSenderId: "138158947311",
+  appId: "1:138158947311:web:d26837317cec9930d4941a"
+};
+
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
+// Obtener sala de la URL
+const urlParams = new URLSearchParams(window.location.search);
+const roomId = urlParams.get('room');
+
+if (!roomId) {
+  document.body.innerHTML = '<div style="text-align:center;padding:50px;"><h2>❌ ERROR</h2><p>No se encontró la sala.<br>Escanea el QR nuevamente.</p></div>';
+}
+
+let judgeId = 'judge_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
+let judgeName = localStorage.getItem('judgeName') || 'Árbitro';
+let connected = false;
+
+document.getElementById('judgeName').value = judgeName;
+
+function addFeed(msg, isError=false) {
+  const feed = document.getElementById('feedPanel');
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  item.style.color = isError ? '#ff8888' : '#aaa';
+  item.textContent = `📱 ${new Date().toLocaleTimeString()} - ${msg}`;
+  feed.prepend(item);
+  if(feed.children.length>15) feed.removeChild(feed.lastChild);
+}
+
+// Registrar árbitro
+function register() {
+  if(!roomId) return;
+  const data = {};
+  data[judgeId] = Date.now();
+  database.ref(roomId + '/judges').update(data);
+  connected = true;
+  document.getElementById('statusLed').classList.add('connected');
+  document.getElementById('statusText').textContent = '✅ Conectado';
+}
+
+// Heartbeat
+setInterval(() => {
+  if(roomId && connected) {
+    const data = {};
+    data[judgeId] = Date.now();
+    database.ref(roomId + '/judges').update(data);
+  }
+}, 5000);
+
+// Escuchar estado
+database.ref(roomId + '/state').on('value', (snapshot) => {
+  const s = snapshot.val();
+  if(s) {
+    document.getElementById('blueScore').textContent = s.scoreBlue || 0;
+    document.getElementById('redScore').textContent = s.scoreRed || 0;
+    const sec = Math.floor((s.timerMs || 60000)/1000);
+    const min = Math.floor(sec/60);
+    const seg = sec%60;
+    const dec = Math.floor(((s.timerMs || 60000)%1000)/100);
+    document.getElementById('timerDisplay').textContent = `${min}:${seg.toString().padStart(2,'0')}.${dec}`;
+    document.getElementById('timerToggle').textContent = s.running ? '⏸ PAUSAR' : '▶ INICIAR';
+    
+    if(!connected) {
+      connected = true;
+      document.getElementById('statusLed').classList.add('connected');
+      document.getElementById('statusText').textContent = '✅ Conectado';
+      addFeed('✅ Conectado al tablero');
+    }
+  }
+});
+
+// Enviar acción
+function sendAction(type, params) {
+  if(!roomId) return;
+  const action = { type, ...params, judgeName, timestamp: Date.now() };
+  database.ref(roomId + '/actions').push(action);
+  addFeed(`📤 ${type}`);
+}
+
+// Eventos
+document.querySelectorAll('[data-points]').forEach(btn => {
+  btn.onclick = () => {
+    sendAction('score', { side: btn.dataset.side, points: parseInt(btn.dataset.points) });
+    btn.style.transform = 'scale(0.95)';
+    setTimeout(() => btn.style.transform = '', 100);
+  };
+});
+
+document.querySelectorAll('[data-action]').forEach(btn => {
+  btn.onclick = () => sendAction(btn.dataset.action, { side: btn.dataset.side });
+});
+
+document.getElementById('timerToggle').onclick = () => sendAction('timer', {});
+document.getElementById('timerReset').onclick = () => sendAction('reset_timer', {});
+document.getElementById('nextRoundBtn').onclick = () => confirm('¿Siguiente ronda?') && sendAction('next_round', {});
+document.getElementById('resetAllBtn').onclick = () => confirm('¿Resetear todo?') && sendAction('reset_all', {});
+
+document.getElementById('setNameBtn').onclick = () => {
+  const newName = document.getElementById('judgeName').value.trim();
+  if(newName) {
+    judgeName = newName;
+    localStorage.setItem('judgeName', judgeName);
+    addFeed(`📝 Nombre: ${judgeName}`);
+  }
+};
+
+register();
+addFeed('🎯 Árbitro listo - Esperando datos...');
+</script>
+</body>
+</html>
